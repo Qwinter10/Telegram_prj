@@ -6,6 +6,7 @@ from random import randint, choice, sample, shuffle
 from questions import answers, cos_sin
 import sqlite3
 import pymorphy2
+import asyncio
 
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher(bot)
@@ -82,13 +83,23 @@ async def top(message: types.Message):
     await message.answer(text, parse_mode='HTML')
 
 
+@dp.message_handler(commands=['stop'])
+async def stop(message: types.Message):
+    if rules and for_start:
+        message.text = 'Стоп'
+        task = asyncio.create_task(speaker(message))
+        await task
+    else:
+        await message.answer('Навык уже не работает')
+
+
 # Начало блока с умножением
 @dp.message_handler(commands=['multiplication'])
 async def multiplication(message: types.Message):
     global for_start
     text = 'Навык умножение запущен\n' \
-           'Напишите "Начать" чтобы приступить к выполнению\n' \
-           'Чтобы закончить напишите "<b>Стоп</b>"'
+           'Напишите "/start_multiplication" или "<b>Начать</b>" чтобы приступить к выполнению\n' \
+           'Чтобы закончить напишите "/stop" или "<b>Стоп</b>"'
     for_start = True
     await message.answer(text, parse_mode='HTML')
 
@@ -141,6 +152,17 @@ async def cos_sin_cal(callback: types.CallbackQuery):
 # конец блока sin/cos
 
 
+# умножение с помощью команды
+@dp.message_handler(commands='start_multiplication')
+async def start_multiplication(message: types.Message):
+    if for_start:
+        message.text = "Начать"
+        task = asyncio.create_task(speaker(message))
+        await task
+    else:
+        await message.answer(text='Вы должны включить навык /multiplication')
+
+
 @dp.message_handler(content_types=['text'])
 async def speaker(message: types.Message):
     # для умножения
@@ -163,7 +185,6 @@ async def speaker(message: types.Message):
         con.commit()
         await message.answer(text=f'{r_tries} из {tries} правильных')
     elif rules:
-        tries += 1
         try:
             point = int(message.text)
         except ValueError:
@@ -172,9 +193,11 @@ async def speaker(message: types.Message):
                                       'Чтобы закончить умножение напишите - <b>Стоп</b>', parse_mode='HTML')
             return
         if point == m * n:
+            tries += 1
             r_tries += 1
             await message.answer(text='Правильно')
         else:
+            tries += 1
             await message.answer(text='Не правильно\n'
                                       f'{m} * {n} = {m * n}')
         m, n = randint(1, 10), randint(1, 10)
