@@ -33,6 +33,8 @@ tries, r_tries = 0, 0
 
 morph = pymorphy2.MorphAnalyzer()
 
+create, change = False, False
+
 
 @dp.message_handler(commands=['start'])
 async def start(message: types.message):
@@ -52,16 +54,57 @@ async def menu(message: types.Message):
     await message.answer('Всё готово', reply_markup=KeyBoard)
 
 
-
 @dp.message_handler(commands=['help'])
 async def helper(message: types.message):
     await message.answer(help_text)
 
 
+# система ников
+@dp.message_handler(commands=['nickname'])
+async def nickname(message: types.Message):
+    ikb = InlineKeyboardMarkup()
+    ikb.add(InlineKeyboardButton('Создать', callback_data='Создать'),
+            InlineKeyboardButton('Изменить', callback_data='Изменить'))
+    ikb.add(InlineKeyboardButton('Отмена', callback_data='Отмена'))
+    await message.answer(text='Вы хотите <b>создать</b> или <b>изменить</b> ник?', parse_mode='HTML', reply_markup=ikb)
+
+
+@dp.callback_query_handler(text=['Создать', 'Изменить', 'Отмена'])  # создаёт/меняет ник
+async def change_nick(callback: types.CallbackQuery):
+    global create, change
+    res = cur.execute("""SELECT nickname FROM information
+                                WHERE user_id = ?""", (callback.from_user.id, )).fetchall()
+    if callback.data == 'Создать':
+        print(res)
+        if res[0][0] is None:
+            create = True
+            await callback.message.answer('Напишите ваш ник:')
+            await bot.delete_message(chat_id=callback.from_user.id, message_id=callback.message.message_id)
+        else:
+            ikb = InlineKeyboardMarkup()
+            ikb.add(InlineKeyboardButton('Изменить', callback_data='Изменить'),
+                    InlineKeyboardButton('Отмена', callback_data='Отмена'))
+            await callback.message.answer('У вас уже есть ник, но вы можете его изменить', reply_markup=ikb)
+    elif callback.data == 'Изменить':
+        if res[0][0] is None:
+            ikb = InlineKeyboardMarkup()
+            ikb.add(InlineKeyboardButton('Создать', callback_data='Создать'),
+            InlineKeyboardButton('Отмена', callback_data='Отмена'))
+            await callback.message.answer('У вас ещё нет ника, но вы можете его создать', reply_markup=ikb)
+        else:
+            change = True
+            await callback.message.answer(f'Ваш nickname - {res[0][0]}\n'
+                                          f'Введите новый чтобы изменить его')
+            await bot.delete_message(chat_id=callback.from_user.id, message_id=callback.message.message_id)
+    elif callback.data == 'Отмена':
+        await bot.delete_message(chat_id=callback.from_user.id, message_id=callback.message.message_id)
+        return
+
+
 # если начинает крашиться
 @dp.message_handler(commands=['stop_all'])
 async def stop_all(message: types.Message):
-    global rules, for_start, m, n, tries, r_tries
+    global rules, for_start, m, n, tries, r_tries, change, create
     result = cur.execute("""SELECT mult_r, multi_all FROM information
                                     WHERE user_id == ?""", (message.from_user.id,)).fetchall()
     new_record = result[0][0] + r_tries
@@ -70,7 +113,7 @@ async def stop_all(message: types.Message):
                            WHERE user_id == ?''', (new_record, message.from_user.id))
     cur.execute('''UPDATE information SET multi_all = ?
                                    WHERE user_id == ?''', (all_try, message.from_user.id))
-    rules, for_start = False, False
+    rules, for_start, change, create = False, False, False, False
     m, n = 0, 0
     tries, r_tries = 0, 0
     await message.answer(text='Все процессы успешно прерваны')
@@ -178,7 +221,7 @@ async def start_multiplication(message: types.Message):
 @dp.message_handler(content_types=['text'])
 async def speaker(message: types.Message):
     # для умножения
-    global rules, m, n, for_start, tries, r_tries
+    global rules, m, n, for_start, tries, r_tries, create, change
     if message.text.capitalize() == 'Начать' and for_start:
         rules = True
         m, n = randint(1, 10), randint(1, 10)
@@ -215,6 +258,14 @@ async def speaker(message: types.Message):
         m, n = randint(1, 10), randint(1, 10)
         await message.answer(text=f'{m} * {n} = ?')
     # конец
+
+    # создание ника
+    if create or change:
+        cur.execute('''UPDATE information SET nickname = ?
+                        WHERE user_id = ?''', (message.text, message.from_user.id))
+        await message.answer(f'Ваш ник - {message.text}')
+        con.commit()
+
 # конец блока с умножением
 
 
