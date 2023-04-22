@@ -1,5 +1,5 @@
 from aiogram import Bot, Dispatcher, executor, types
-from aiogram.types import ReplyKeyboardRemove, KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardButton, \
+from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardButton, \
     InlineKeyboardMarkup
 from config import BOT_TOKEN
 from random import randint, choice, sample, shuffle
@@ -16,7 +16,11 @@ cur = con.cursor()
 
 help_text = """
 /help - информация о командах
-/multiplication"""
+/multiplication - проверяет знания о таблице умножения
+/sin_cos - проверяет знания sin/cos/tg/ctg до 180°
+/stop_all - еслм что-то идёт не так
+/top - показывает топ 1 пользователей в 3 режимах
+/menu - если что-то слкчилось с клавиатурой"""
 
 KeyBoard = ReplyKeyboardMarkup(resize_keyboard=True)
 KeyBoard.add(KeyboardButton('/help'), KeyboardButton('/multiplication'))
@@ -32,13 +36,21 @@ morph = pymorphy2.MorphAnalyzer()
 
 @dp.message_handler(commands=['start'])
 async def start(message: types.message):
-    await message.answer(text=f'Привет, {message["from"]["first_name"]}', reply_markup=KeyBoard)
+    await message.answer(text=f'Доброго времени суток, {message["from"]["first_name"]}\n'
+                              f'Этот бот создан для изучения/практики метематики\n'
+                              f'Удачи!', reply_markup=KeyBoard)
     res = cur.execute("""SELECT user_id FROM information""").fetchall()
     result = [el[0] for el in res]
     if message["from"]["id"] not in result:
         cur.execute("""INSERT INTO information(user_id, name, surname) VALUES (?, ?, ?)""",
                     (message["from"]["id"], message["from"]["first_name"], message["from"]["last_name"]))
         con.commit()
+
+
+@dp.message_handler(commands=['menu'])
+async def menu(message: types.Message):
+    await message.answer('Всё готово', reply_markup=KeyBoard)
+
 
 
 @dp.message_handler(commands=['help'])
