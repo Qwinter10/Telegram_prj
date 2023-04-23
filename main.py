@@ -16,16 +16,19 @@ cur = con.cursor()
 
 help_text = """
 /help - информация о командах
-/multiplication - проверяет знания о таблице умножения
-/sin_cos - проверяет знания sin/cos/tg/ctg до 180°
 /stop_all - еслм что-то идёт не так
-/top - показывает топ 1 пользователей в 3 режимах
-/menu - если что-то слкчилось с клавиатурой"""
+/modes - меню режимов
+/privacy - показывать имя в списке лидеров"""
 
 KeyBoard = ReplyKeyboardMarkup(resize_keyboard=True)
-KeyBoard.add(KeyboardButton('/help'), KeyboardButton('/multiplication'))
-KeyBoard.add(KeyboardButton('/sin_cos'), KeyboardButton('/stop_all'))
-KeyBoard.add(KeyboardButton('/top'))
+KeyBoard.add(KeyboardButton('/help'), KeyboardButton('/nickname'))
+KeyBoard.add(KeyboardButton('/privacy'), KeyboardButton('/stop_all'))
+KeyBoard.add(KeyboardButton('/modes'))
+
+KeyBoard2 = ReplyKeyboardMarkup(resize_keyboard=True)
+KeyBoard2.add(KeyboardButton('/sin_cos'), KeyboardButton('/multiplication'))
+KeyBoard2.add(KeyboardButton('/top'), KeyboardButton('/help'))
+KeyBoard2.add(KeyboardButton('/menu'))
 
 rules, for_start = False, False
 m, n = 0, 0
@@ -40,6 +43,7 @@ create, change = False, False
 async def start(message: types.message):
     await message.answer(text=f'Доброго времени суток, {message["from"]["first_name"]}\n'
                               f'Этот бот создан для изучения/практики метематики\n'
+                              f'Чтобы узнать какие есть команды нажмите - /help\n'
                               f'Удачи!', reply_markup=KeyBoard)
     res = cur.execute("""SELECT user_id FROM information""").fetchall()
     result = [el[0] for el in res]
@@ -49,9 +53,30 @@ async def start(message: types.message):
         con.commit()
 
 
+# режимы изучения
+@dp.message_handler(commands=['modes'])
+async def modes(message: types.Message):
+    global help_text
+    help_text = """
+/multiplication - проверяет знания о таблице умножения
+/sin_cos - проверяет знания sin/cos/tg/ctg до 180°
+/top - показывает топ 1 пользователей в 3 режимах
+/menu - открыть главное меню
+"""
+    await message.answer(text='--modes--', reply_markup=KeyBoard2)
+
+
+# основное меню
 @dp.message_handler(commands=['menu'])
 async def menu(message: types.Message):
-    await message.answer('Всё готово', reply_markup=KeyBoard)
+    global help_text
+    help_text = """
+/help - информация о командах
+/stop_all - еслм что-то идёт не так
+/modes - меню режимов
+/privacy - показывать имя в списке лидеров
+"""
+    await message.answer(text='--menu--', reply_markup=KeyBoard)
 
 
 @dp.message_handler(commands=['help'])
@@ -166,6 +191,7 @@ async def privat(callback: types.CallbackQuery):
     con.commit()
     await callback.answer('Процесс успешно выполнен')
     await bot.delete_message(chat_id=callback.from_user.id, message_id=callback.message.message_id)
+# Конец блока приватности
 
 
 @dp.message_handler(commands=['stop'])
