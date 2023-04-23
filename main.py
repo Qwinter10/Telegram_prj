@@ -75,7 +75,6 @@ async def change_nick(callback: types.CallbackQuery):
     res = cur.execute("""SELECT nickname FROM information
                                 WHERE user_id = ?""", (callback.from_user.id, )).fetchall()
     if callback.data == 'Создать':
-        print(res)
         if res[0][0] is None:
             create = True
             await callback.message.answer('Напишите ваш ник:')
@@ -122,20 +121,51 @@ async def stop_all(message: types.Message):
 # Топ во всех режимах
 @dp.message_handler(commands=['top'])
 async def top(message: types.Message):
-    res = cur.execute("""SELECT name, mult_r, sin_cos_r FROM information""").fetchall()
-    multiplic = [(el[0], el[1]) for el in res]
-    sin = [(el[0], el[2]) for el in res]
+    res = cur.execute("""SELECT name, mult_r, sin_cos_r, nickname, private FROM information""").fetchall()
+    multiplic = [(el[0], el[1], el[3], el[4]) for el in res]
+    sin = [(el[0], el[2], el[3], el[4]) for el in res]
     sin.sort(key=lambda x: x[1])
     multiplic.sort(key=lambda x: x[1])
+    print(multiplic[-1])
+    max_multi = multiplic[-1][0] if multiplic[-1][3] == 0 else multiplic[-1][2]
+    max_sin = sin[-1][0] if sin[-1][3] == 0 else sin[-1][2]
     comment = morph.parse('правильных')[0]
     text = 'Топ 1 во всех режимах:\n' \
            '--------------------\n' \
-           f'<b>Умножение:</b> {multiplic[-1][0]} - {multiplic[-1][1]} ' \
+           f'<b>Умножение:</b> {max_multi} - {multiplic[-1][1]} ' \
            f'{comment.make_agree_with_number(multiplic[0][1]).word}\n' \
            '--------------------\n' \
-           f'<b>Sin/cos:</b> {sin[-1][0]} - {sin[-1][1]} {comment.make_agree_with_number(sin[0][1]).word}\n' \
+           f'<b>Sin/cos:</b> {max_sin} - {sin[-1][1]} {comment.make_agree_with_number(sin[0][1]).word}\n' \
            '--------------------'
     await message.answer(text, parse_mode='HTML')
+
+
+# Приватность
+@dp.message_handler(commands=['privacy'])
+async def create_privacy(message: types.Message):
+    await message.delete()
+    res = cur.execute("""SELECT nickname FROM information
+                         WHERE user_id = ?""", (message.from_user.id,)).fetchall()
+    if res[0][0] is not None:
+        ikb = InlineKeyboardMarkup()
+        ikb.add(InlineKeyboardButton(text='Да', callback_data='Да'),
+                InlineKeyboardButton(text='Нет', callback_data='Нет'))
+        await message.answer(text='Жедаете сделать аккаунт приватным', reply_markup=ikb)
+    else:
+        task = asyncio.create_task(nickname(message))
+        await message.answer(text='Вам нужно создать ник чтобы сделать аккаунт приватным')
+        await task
+
+
+@dp.callback_query_handler(text=['Да', 'Нет'])
+async def privat(callback: types.CallbackQuery):
+    if callback.data == 'Да':
+        cur.execute("""UPDATE information SET private = 1 WHERE user_id = ?""", (callback.from_user.id,))
+    else:
+        cur.execute("""UPDATE information SET private = 0 WHERE user_id = ?""", (callback.from_user.id,))
+    con.commit()
+    await callback.answer('Процесс успешно выполнен')
+    await bot.delete_message(chat_id=callback.from_user.id, message_id=callback.message.message_id)
 
 
 @dp.message_handler(commands=['stop'])
@@ -265,6 +295,7 @@ async def speaker(message: types.Message):
                         WHERE user_id = ?''', (message.text, message.from_user.id))
         await message.answer(f'Ваш ник - {message.text}')
         con.commit()
+        change, change = False, False
 
 # конец блока с умножением
 
