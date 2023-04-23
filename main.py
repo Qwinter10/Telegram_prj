@@ -39,6 +39,7 @@ morph = pymorphy2.MorphAnalyzer()
 create, change = False, False
 
 
+# старт
 @dp.message_handler(commands=['start'])
 async def start(message: types.message):
     await message.answer(text=f'Доброго времени суток, {message["from"]["first_name"]}\n'
